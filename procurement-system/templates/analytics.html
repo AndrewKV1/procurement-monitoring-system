@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналітика закупівель - Система моніторингу закупівель</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+<body>
+    {% extends "base.html" %}
+
+    {% block content %}
+    <div class="analytics-page">
+        <div class="page-header">
+            <h2>Аналітика та звіти по закупівлях</h2>
+            <p>Статистичні дані, звіти та аналітика для прийняття рішень</p>
+        </div>
+
+        <div class="analytics-controls">
+            <div class="filter-section">
+                <h3>Фільтри аналітики</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="period">Період аналізу:</label>
+                        <select id="period">
+                            <option value="7">Останні 7 днів</option>
+                            <option value="30" selected>Останні 30 днів</option>
+                            <option value="90">Останні 3 місяці</option>
+                            <option value="365">Останній рік</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="report_type">Тип звіту:</label>
+                        <select id="report_type">
+                            <option value="financial">Фінансові показники</option>
+                            <option value="suppliers">Ефективність постачальників</option>
+                            <option value="trends">Тенденції цін</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="supplier_filter">Постачальник:</label>
+                        <select id="supplier_filter">
+                            <option value="all">Всі постачальники</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="status_filter">Статус заявок:</label>
+                        <select id="status_filter">
+                            <option value="all">Всі статуси</option>
+                            <option value="approved">Тільки затверджені</option>
+                            <option value="pending">Тільки очікуючі</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button id="generateReport" class="btn btn-primary">Оновити аналітику</button>
+                        <button id="exportReport" class="btn btn-secondary">Експорт звіту</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-dashboard">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Загальна сума закупівель</h3>
+                    <div class="stat-number" id="totalAmount">0 грн</div>
+                    <p>За весь період</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Кількість заявок</h3>
+                    <div class="stat-number" id="totalRequests">0</div>
+                    <p>Затверджено: <span id="approvedRequests">0</span></p>
+                </div>
+                <div class="stat-card">
+                    <h3>Активних постачальників</h3>
+                    <div class="stat-number" id="activeSuppliers">0</div>
+                    <p>З якими працювали</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Середня закупівля</h3>
+                    <div class="stat-number" id="averagePurchase">0 грн</div>
+                    <p>Середній чек</p>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>Фінансова динаміка по місяцях</h3>
+                    <canvas id="financialChart" width="400" height="200"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Топ постачальників за обсягом закупівель</h3>
+                    <canvas id="suppliersChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>Розподіл за статусами</h3>
+                    <canvas id="statusChart" width="400" height="200"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Закупівлі по регіонах</h3>
+                    <canvas id="regionChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+
+            <div class="suppliers-ranking">
+                <h3>Рейтинг постачальників</h3>
+                <div id="suppliersRanking" class="ranking-list">
+                    <p>Завантаження даних...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        class AnalyticsManager {
+            constructor() {
+                this.charts = {};
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadSuppliersFilter();
+                setTimeout(() => {
+                    this.loadAnalyticsData();
+                }, 1000);
+            }
+
+            bindEvents() {
+                document.getElementById('generateReport').addEventListener('click', () => {
+                    this.loadAnalyticsData();
+                });
+
+                document.getElementById('exportReport').addEventListener('click', () => {
+                    this.exportReport();
+                });
+
+                document.getElementById('period').addEventListener('change', () => {
+                    this.loadAnalyticsData();
+                });
+
+                document.getElementById('report_type').addEventListener('change', () => {
+                    this.loadAnalyticsData();
+                });
+
+                document.getElementById('supplier_filter').addEventListener('change', () => {
+                    this.loadAnalyticsData();
+                });
+
+                document.getElementById('status_filter').addEventListener('change', () => {
+                    this.loadAnalyticsData();
+                });
+            }
+
+            async loadSuppliersFilter() {
+                try {
+                    const response = await fetch('/api/analytics/suppliers');
+                    const suppliers = await response.json();
+                    
+                    const select = document.getElementById('supplier_filter');
+                    suppliers.forEach(supplier => {
+                        if (supplier.purchase_count > 0) {
+                            const option = document.createElement('option');
+                            option.value = supplier.id;
+                            option.textContent = `${supplier.name} (${supplier.purchase_count} закупівель)`;
+                            select.appendChild(option);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Помилка завантаження постачальників:', error);
+                }
+            }
+
+            async loadAnalyticsData() {
+                try {
+                    this.showLoading();
+                    
+                    const period = document.getElementById('period').value;
+                    const supplierFilter = document.getElementById('supplier_filter').value;
+                    const statusFilter = document.getElementById('status_filter').value;
+                    
+                    const financialResponse = await fetch('/api/analytics/financial');
+                    if (!financialResponse.ok) throw new Error('Помилка завантаження фінансових даних');
+                    const financialData = await financialResponse.json();
+                    
+                    const suppliersResponse = await fetch('/api/analytics/suppliers');
+                    if (!suppliersResponse.ok) throw new Error('Помилка завантаження даних постачальників');
+                    const suppliersData = await suppliersResponse.json();
+                    
+                    this.updateDashboard(financialData);
+                    this.createFinancialChart(financialData);
+                    this.createSuppliersChart(suppliersData);
+                    this.createStatusChart(financialData);
+                    this.createRegionChart(suppliersData);
+                    this.updateSuppliersRanking(suppliersData);
+                    
+                } catch (error) {
+                    console.error('Помилка завантаження аналітики:', error);
+                    this.showError('Не вдалося завантажити дані аналітики: ' + error.message);
+                    this.showTestData();
+                }
+            }
+
+            updateDashboard(data) {
+                document.getElementById('totalAmount').textContent = this.formatCurrency(data.total_amount || 0);
+                document.getElementById('totalRequests').textContent = data.total_requests || 0;
+                document.getElementById('approvedRequests').textContent = data.approved_requests || 0;
+                document.getElementById('averagePurchase').textContent = this.formatCurrency(data.average_purchase || 0);
+                document.getElementById('activeSuppliers').textContent = data.active_suppliers || 0;
+            }
+
+            createFinancialChart(data) {
+                const ctx = document.getElementById('financialChart').getContext('2d');
+                
+                if (this.charts.financial) {
+                    this.charts.financial.destroy();
+                }
+
+                const monthlyData = data.monthly_stats || [];
+                
+                if (monthlyData.length === 0 || monthlyData.every(item => item.amount === 0)) {
+                    ctx.font = '16px Arial';
+                    ctx.fillStyle = '#666';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Немає даних для відображення', 200, 100);
+                    return;
+                }
+
+                this.charts.financial = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: monthlyData.map(item => {
+                            const [year, month] = item.month.split('-');
+                            return `${month}/${year}`;
+                        }),
+                        datasets: [{
+                            label: 'Сума закупівель (грн)',
+                            data: monthlyData.map(item => item.amount),
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Динаміка закупівель по місяцях'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('uk-UA') + ' грн';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            createSuppliersChart(suppliersData) {
+                const ctx = document.getElementById('suppliersChart').getContext('2d');
+                
+                if (this.charts.suppliers) {
+                    this.charts.suppliers.destroy();
+                }
+
+                const suppliersWithPurchases = suppliersData.filter(s => s.total_amount > 0);
+                
+                if (suppliersWithPurchases.length === 0) {
+                    ctx.font = '16px Arial';
+                    ctx.fillStyle = '#666';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Немає даних про закупівлі', 200, 100);
+                    return;
+                }
+
+                const topSuppliers = suppliersWithPurchases
+                    .sort((a, b) => b.total_amount - a.total_amount)
+                    .slice(0, 5);
+
+                this.charts.suppliers = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: topSuppliers.map(s => s.name.substring(0, 20) + (s.name.length > 20 ? '...' : '')),
+                        datasets: [{
+                            label: 'Загальна сума закупівель (грн)',
+                            data: topSuppliers.map(s => s.total_amount),
+                            backgroundColor: [
+                                'rgba(46, 204, 113, 0.7)',
+                                'rgba(52, 152, 219, 0.7)',
+                                'rgba(155, 89, 182, 0.7)',
+                                'rgba(52, 73, 94, 0.7)',
+                                'rgba(241, 196, 15, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Топ постачальників за обсягом закупівель'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('uk-UA') + ' грн';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            createStatusChart(data) {
+                const ctx = document.getElementById('statusChart').getContext('2d');
+                
+                if (this.charts.status) {
+                    this.charts.status.destroy();
+                }
+
+                const statusData = {
+                    'Затверджені': data.approved_requests || 0,
+                    'Очікуючі': (data.total_requests || 0) - (data.approved_requests || 0)
+                };
+
+                this.charts.status = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(statusData),
+                        datasets: [{
+                            data: Object.values(statusData),
+                            backgroundColor: [
+                                'rgba(46, 204, 113, 0.7)',
+                                'rgba(241, 196, 15, 0.7)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Розподіл заявок за статусами'
+                            }
+                        }
+                    }
+                });
+            }
+
+            createRegionChart(suppliersData) {
+                const ctx = document.getElementById('regionChart').getContext('2d');
+                
+                if (this.charts.region) {
+                    this.charts.region.destroy();
+                }
+
+                const regionData = {};
+                suppliersData.forEach(supplier => {
+                    if (supplier.total_amount > 0) {
+                        const region = supplier.region || 'Не вказано';
+                        regionData[region] = (regionData[region] || 0) + supplier.total_amount;
+                    }
+                });
+
+                if (Object.keys(regionData).length === 0) {
+                    ctx.font = '16px Arial';
+                    ctx.fillStyle = '#666';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Немає даних по регіонах', 200, 100);
+                    return;
+                }
+
+                this.charts.region = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(regionData),
+                        datasets: [{
+                            data: Object.values(regionData),
+                            backgroundColor: [
+                                'rgba(52, 152, 219, 0.7)',
+                                'rgba(46, 204, 113, 0.7)',
+                                'rgba(155, 89, 182, 0.7)',
+                                'rgba(241, 196, 15, 0.7)',
+                                'rgba(231, 76, 60, 0.7)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Закупівлі по регіонах'
+                            }
+                        }
+                    }
+                });
+            }
+
+            updateSuppliersRanking(suppliersData) {
+                const container = document.getElementById('suppliersRanking');
+                
+                const suppliersWithPurchases = suppliersData.filter(s => s.purchase_count > 0);
+                
+                if (suppliersWithPurchases.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <h4>Немає даних про закупівлі</h4>
+                            <p>Ще не було здійснено жодної закупівлі</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const rankedSuppliers = suppliersWithPurchases
+                    .sort((a, b) => b.total_amount - a.total_amount)
+                    .slice(0, 10);
+
+                container.innerHTML = rankedSuppliers.map((supplier, index) => `
+                    <div class="ranking-item">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="font-weight: bold; color: #2c3e50; font-size: 1.2em;">${index + 1}.</span>
+                            <div>
+                                <div style="font-weight: 600; font-size: 1.1em;">${supplier.name}</div>
+                                <div style="font-size: 0.875rem; color: #666;">${supplier.region}</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: #f39c12; font-weight: bold; font-size: 1.1em;">
+                                ${'★'.repeat(Math.floor(supplier.rating))}${'☆'.repeat(5 - Math.floor(supplier.rating))} 
+                                (${supplier.rating.toFixed(1)})
+                            </div>
+                            <div style="font-size: 0.875rem; margin-top: 5px;">
+                                <strong>${supplier.purchase_count}</strong> закупівель • 
+                                <strong>${this.formatCurrency(supplier.total_amount)}</strong>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async exportReport() {
+                try {
+                    const reportType = document.getElementById('report_type').value;
+                    const period = document.getElementById('period').value;
+                    
+                    const response = await fetch('/api/analytics/export', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            report_type: reportType,
+                            period: period
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Помилка при експорті звіту');
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        const blob = new Blob([result.content], { type: 'text/plain; charset=utf-8' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = result.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        
+                        this.showMessage('Звіт успішно експортовано!', 'success');
+                    } else {
+                        throw new Error(result.error || 'Невідома помилка');
+                    }
+                    
+                } catch (error) {
+                    console.error('Помилка експорту:', error);
+                    this.showError('Помилка при експорті звіту: ' + error.message);
+                }
+            }
+
+            formatCurrency(amount) {
+                return new Intl.NumberFormat('uk-UA', {
+                    style: 'currency',
+                    currency: 'UAH',
+                    minimumFractionDigits: 0
+                }).format(amount);
+            }
+
+            showLoading() {
+                document.getElementById('suppliersRanking').innerHTML = '<p>Завантаження даних...</p>';
+            }
+
+            showTestData() {
+                document.getElementById('totalAmount').textContent = '125,000 грн';
+                document.getElementById('totalRequests').textContent = '8';
+                document.getElementById('approvedRequests').textContent = '6';
+                document.getElementById('averagePurchase').textContent = '20,833 грн';
+                document.getElementById('activeSuppliers').textContent = '3';
+                
+                document.getElementById('suppliersRanking').innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <h4>Тестові дані</h4>
+                        <p>Реальні дані будуть відображені після створення заявок на закупівлю</p>
+                    </div>
+                `;
+            }
+
+            showMessage(message, type = 'info') {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 1000;
+                    min-width: 300px;
+                `;
+                alertDiv.textContent = message;
+                
+                document.body.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, 5000);
+            }
+
+            showError(message) {
+                this.showMessage(message, 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            window.analyticsManager = new AnalyticsManager();
+        });
+    </script>
+    {% endblock %}
+</body>
+</html>

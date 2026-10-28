@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="equipment-page">
+    <div class="page-header">
+        <h2>Управління довідником обладнання</h2>
+        <p>Перегляд, додавання та видалення обладнання</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="action-bar">
+        <span>Всього: {{ equipment|length }} позицій</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Назва</th>
+                    <th>Категорія</th>
+                    <th>Специфікація</th>
+                    <th>Ціна (грн)</th>
+                    <th>Постачальник</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for eq in equipment %}
+                <tr>
+                    <td><strong>{{ eq.name }}</strong></td>
+                    <td>{{ eq.category or '-' }}</td>
+                    <td>{{ eq.specifications or '-' }}</td>
+                    <td>{{ "%.2f"|format(eq.average_price or 0) }}</td>
+                    <td>{{ eq.supplier.name if eq.supplier else '-' }}</td>
+                    <td>
+                        {% if session.user_role == 'manager' %}
+                        <a href="{{ url_for('delete_equipment', equipment_id=eq.id) }}" 
+                        class="btn btn-sm btn-danger"
+                        onclick="return confirm('Видалити обладнання {{ eq.name }}?')">
+                        Видалити
+                    </a>
+                    {% else %}
+                    <span style="color: #6c757d; font-style: italic;">Тільки перегляд</span>
+                    {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

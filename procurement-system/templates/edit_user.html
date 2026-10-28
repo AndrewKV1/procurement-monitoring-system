@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="edit-user-page">
+    <div class="page-header">
+        <h2>Редагування користувача</h2>
+        <p>Зміна даних користувача {{ user.full_name }}</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="form-container">
+        <form method="POST" class="user-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="full_name">Повне ім'я *</label>
+                    <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" value="{{ user.email }}" readonly class="readonly-field">
+                    <small class="form-text">Email не можна змінити</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="role">Роль *</label>
+                    <select id="role" name="role" required>
+                        <option value="financial_director" {% if user.role == 'financial_director' %}selected{% endif %}>Фінансовий директор</option>
+                        <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Менеджер</option>
+                        <option value="project_manager" {% if user.role == 'project_manager' %}selected{% endif %}>Керівник проекту</option>
+                        <option value="analyst" {% if user.role == 'analyst' %}selected{% endif %}>Аналітик</option>
+                        <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Адміністратор</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="department">Відділ</label>
+                    <input type="text" id="department" name="department" value="{{ user.department or '' }}">
+                    <small class="form-text">Наприклад: Закупівлі, Аналітика, IT</small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %}>
+                    Активний користувач
+                </label>
+                <small class="form-text">Якщо не позначено, користувач не зможе входити в систему</small>
+            </div>
+
+            <div class="user-info">
+                <h4>Інформація про користувача:</h4>
+                <p><strong>Дата реєстрації:</strong> {{ user.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                {% if user.last_login %}
+                <p><strong>Останній вхід:</strong> {{ user.last_login.strftime('%d.%m.%Y %H:%M') }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Зберегти зміни</button>
+                <a href="{{ url_for('users') }}" class="btn btn-secondary">Скасувати</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.getElementById('role').addEventListener('change', function() {
+        if (this.value === 'admin') {
+            alert('Призначення ролі "Адміністратор" потребує додаткового затвердження керівником IT-відділу');
+        }
+    });
+</script>
+{% endblock %}

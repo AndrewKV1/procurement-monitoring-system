@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="suppliers-page">
+    <div class="page-header">
+        <h2>Пошук та порівняння постачальників</h2>
+        <p>Знаходження оптимальних партнерів для закупівель будівельного обладнання</p>
+    </div>
+
+    <div class="search-section">
+        <form id="searchForm" class="search-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">Назва постачальника:</label>
+                    <input type="text" id="name" name="name" placeholder="Введіть назву...">
+                </div>
+                <div class="form-group">
+                    <label for="region">Регіон:</label>
+                    <select id="region" name="region">
+                        <option value="">Всі регіони</option>
+                        {% for region in regions %}
+                        <option value="{{ region }}">{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="specialization">Спеціалізація:</label>
+                    <select id="specialization" name="specialization">
+                        <option value="">Всі категорії</option>
+                        {% for spec in specializations %}
+                        <option value="{{ spec }}">{{ spec }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="min_rating">Мінімальний рейтинг:</label>
+                    <select id="min_rating" name="min_rating">
+                        <option value="0">Будь-який</option>
+                        <option value="3">3+ зірок</option>
+                        <option value="4" selected>4+ зірок</option>
+                        <option value="4.5">4.5+ зірок</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="min_experience">Мінімальний стаж:</label>
+                    <select id="min_experience" name="min_experience">
+                        <option value="0">Будь-який</option>
+                        <option value="1">1+ років</option>
+                        <option value="3" selected>3+ років</option>
+                        <option value="5">5+ років</option>
+                    </select>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="has_certificates" name="has_certificates">
+                        Тільки сертифіковані постачальники
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is_verified" name="is_verified" checked>
+                        Тільки верифіковані постачальники
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Пошук</button>
+                <button type="button" id="resetFilters" class="btn btn-secondary">Скинути фільтри</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="results-section">
+        <div class="results-header">
+            <h3>Результати пошуку</h3>
+            <div class="results-info">
+                <span id="resultsCount">Знайдено: 0 постачальників</span>
+                <div class="comparison-controls">
+                    <button id="compareSelected" class="btn btn-primary" disabled>Порівняти обраних (<span id="selectedCount">0</span>)</button>
+                    <button id="clearComparison" class="btn btn-secondary">Очистити порівняння</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="searchResults" class="suppliers-grid">
+            <div class="no-results">
+                <h4>Введіть критерії пошуку</h4>
+                <p>Оберіть параметри фільтрації та натисніть кнопку "Пошук"</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="comparison-section" id="comparisonSection" style="display: none;">
+        <h3>Порівняльна таблиця постачальників</h3>
+        <div id="comparisonResults" class="comparison-table"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+class SuppliersManager {
+    constructor() {
+        this.selectedSuppliers = new Set();
+        this.searchResults = [];
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+        setTimeout(() => this.loadAllSuppliers(), 500);
+    }
+
+    bindEvents() {
+        const searchForm = document.getElementById('searchForm');
+        if (searchForm) {
+            searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.performSearch(this.getSearchCriteria());
+            });
+        }
+
+        const resetBtn = document.getElementById('resetFilters');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                document.getElementById('searchForm').reset();
+                this.loadAllSuppliers();
+            });
+        }
+
+        const compareBtn = document.getElementById('compareSelected');
+        if (compareBtn) {
+            compareBtn.addEventListener('click', () => this.compareSelectedSuppliers());
+        }
+
+        const clearBtn = document.getElementById('clearComparison');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearComparison());
+        }
+    }
+
+    getSearchCriteria() {
+        const formData = new FormData(document.getElementById('searchForm'));
+        const criteria = {};
+        for (let [key, value] of formData.entries()) {
+            if (value) criteria[key] = value;
+        }
+        criteria.has_certificates = document.getElementById('has_certificates')?.checked || false;
+        criteria.is_verified = document.getElementById('is_verified')?.checked || false;
+        return criteria;
+    }
+
+    async loadAllSuppliers() {
+        await this.performSearch({});
+    }
+
+    async performSearch(criteria) {
+        try {
+            this.showLoading();
+            const response = await fetch('/api/suppliers/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(criteria)
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            this.searchResults = data;
+            this.displaySearchResults();
+        } catch (error) {
+            console.error('Помилка пошуку:', error);
+            this.showError('Помилка пошуку: ' + error.message);
+        }
+    }
+
+    displaySearchResults() {
+        const container = document.getElementById('searchResults');
+        const countElement = document.getElementById('resultsCount');
+        
+        if (countElement) {
+            countElement.textContent = `Знайдено: ${this.searchResults.length} постачальників`;
+        }
+
+        if (this.searchResults.length === 0) {
+            container.innerHTML = `
+                <div class="no-results">
+                    <h4>Постачальників не знайдено</h4>
+                    <p>Спробуйте змінити критерії пошуку</p>
+                    <button onclick="suppliersManager.loadAllSuppliers()" class="btn btn-primary">Показати всіх</button>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.searchResults.map(supplier => {
+            const isSelected = this.selectedSuppliers.has(supplier.id);
+            const ratingStars = '★'.repeat(Math.floor(supplier.rating)) + '☆'.repeat(5 - Math.floor(supplier.rating));
+            
+            return `
+                <div class="supplier-card ${isSelected ? 'selected' : ''}" data-supplier-id="${supplier.id}">
+                    <div class="supplier-header">
+                        <h4>${supplier.name}</h4>
+                        <div class="supplier-rating">${ratingStars} (${supplier.rating})</div>
+                    </div>
+                    <div class="supplier-meta">
+                        <span>${supplier.region}</span>
+                        <span>${supplier.years_on_market} років</span>
+                    </div>
+                    <div class="supplier-details">
+                        <p><strong>Контакт:</strong> ${supplier.contact_person}</p>
+                        <p><strong>Телефон:</strong> ${supplier.phone}</p>
+                        <p><strong>Email:</strong> ${supplier.email}</p>
+                        <p><strong>Спеціалізація:</strong> ${supplier.specialization}</p>
+                        <p><strong>Сертифікати:</strong> ${supplier.has_certificates ? 'OK' : 'Ні'}</p>
+                        <p><strong>Середній термін поставки:</strong> ${supplier.avg_delivery_time || 'N/A'} днів</p>
+                    </div>
+                    <div class="supplier-actions">
+                        <button type="button" class="btn btn-sm ${isSelected ? 'btn-warning' : 'btn-primary'}" 
+                                onclick="suppliersManager.toggleSupplier(${supplier.id})">
+                            ${isSelected ? 'Видалити з порівняння' : 'Додати до порівняння'}
+                        </button>
+                        <a href="/requests/create?supplier_id=${supplier.id}" class="btn btn-sm btn-success">Створити заявку</a>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    toggleSupplier(supplierId) {
+        if (this.selectedSuppliers.has(supplierId)) {
+            this.selectedSuppliers.delete(supplierId);
+        } else {
+            if (this.selectedSuppliers.size >= 5) {
+                this.showError('Можна порівнювати не більше 5 постачальників');
+                return;
+            }
+            this.selectedSuppliers.add(supplierId);
+        }
+        this.updateSelectionUI();
+        this.displaySearchResults();
+    }
+
+    updateSelectionUI() {
+        const selectedCount = document.getElementById('selectedCount');
+        const compareBtn = document.getElementById('compareSelected');
+        if (selectedCount) selectedCount.textContent = this.selectedSuppliers.size;
+        if (compareBtn) compareBtn.disabled = this.selectedSuppliers.size < 2;
+    }
+
+    async compareSelectedSuppliers() {
+        if (this.selectedSuppliers.size < 2) {
+            this.showError('Оберіть мінімум 2 постачальників');
+            return;
+        }
+        try {
+            const response = await fetch('/api/suppliers/compare', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({supplier_ids: Array.from(this.selectedSuppliers)})
+            });
+            const comparisonData = await response.json();
+            this.displayComparison(comparisonData);
+        } catch (error) {
+            this.showError('Помилка порівняння: ' + error.message);
+        }
+    }
+
+    displayComparison(comparisonData) {
+        const container = document.getElementById('comparisonResults');
+        const section = document.getElementById('comparisonSection');
+        if (section) section.style.display = 'block';
+        
+        container.innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Параметр</th>
+                        ${comparisonData.map(s => `<th>${s.name}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Рейтинг</strong></td>
+                        ${comparisonData.map(s => `<td>★ ${s.rating.toFixed(1)}</td>`).join('')}
+                    </tr>
+                    <tr>
+                        <td><strong>Стаж</strong></td>
+                        ${comparisonData.map(s => `<td>${s.years_on_market} років</td>`).join('')}
+                    </tr>
+                    <tr>
+                        <td><strong>Регіон</strong></td>
+                        ${comparisonData.map(s => `<td>${s.region}</td>`).join('')}
+                    </tr>
+                    <tr>
+                        <td><strong>Сертифікати</strong></td>
+                        ${comparisonData.map(s => `<td>${s.has_certificates ? 'OK' : 'Ні'}</td>`).join('')}
+                    </tr>
+                    <tr>
+                        <td><strong>Закупівель</strong></td>
+                        ${comparisonData.map(s => `<td>${s.purchase_count}</td>`).join('')}
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 20px; text-align: center;">
+                <button onclick="suppliersManager.clearComparison()" class="btn btn-secondary">Закрити</button>
+            </div>
+        `;
+    }
+
+    clearComparison() {
+        this.selectedSuppliers.clear();
+        this.updateSelectionUI();
+        this.displaySearchResults();
+        const section = document.getElementById('comparisonSection');
+        if (section) section.style.display = 'none';
+    }
+
+    showLoading() {
+        document.getElementById('searchResults').innerHTML = '<div style="text-align:center;padding:60px;"><h4>Завантаження...</h4></div>';
+    }
+
+    showError(message) {
+        alert(message);
+    }
+}
+
+let suppliersManager;
+document.addEventListener('DOMContentLoaded', function() {
+    suppliersManager = new SuppliersManager();
+});
+</script>
+{% endblock %}

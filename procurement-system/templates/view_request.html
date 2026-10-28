@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="view-request-page">
+    <div class="page-header">
+        <h2> Деталі заявки {{ request.request_number }}</h2>
+        <p>Повна інформація про заявку на закупівлю</p>
+    </div>
+
+    <div class="request-details">
+        <div class="detail-section">
+            <h3> Основна інформація</h3>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <strong>Номер заявки:</strong> {{ request.request_number }}
+                </div>
+                <div class="detail-item">
+                    <strong>Статус:</strong> 
+                    <span class="status-{{ request.status }}">
+                        {% if request.status == 'approved' %} Затверджено
+                        {% elif request.status == 'pending' %} Очікує менеджера
+                        {% elif request.status == 'pending_project_manager' %} Очікує керівника
+                        {% elif request.status == 'pending_financial_director' %} Очікує фін. директора
+                        {% elif request.status == 'draft' %} Чернетка
+                        {% elif request.status == 'rejected' %} Відхилено
+                        {% elif request.status == 'cancelled' %} Скасовано
+                        {% else %} {{ request.status }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <strong>Дата створення:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}
+                </div>
+                <div class="detail-item">
+                    <strong>Користувач:</strong> {{ request.user.full_name }}
+                </div>
+                <div class="detail-item">
+                    <strong>Відділ:</strong> {{ request.user.department or 'Не вказано' }}
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <h3> Інформація про постачальника</h3>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <strong>Постачальник:</strong> {{ request.supplier.name }}
+                </div>
+                <div class="detail-item">
+                    <strong>Контактна особа:</strong> {{ request.supplier.contact_person or 'Не вказано' }}
+                </div>
+                <div class="detail-item">
+                    <strong>Телефон:</strong> {{ request.supplier.phone or 'Не вказано' }}
+                </div>
+                <div class="detail-item">
+                    <strong>Email:</strong> {{ request.supplier.email or 'Не вказано' }}
+                </div>
+                <div class="detail-item">
+                    <strong>Регіон:</strong> {{ request.supplier.region or 'Не вказано' }}
+                </div>
+                <div class="detail-item">
+                    <strong>Рейтинг:</strong> {{ request.supplier.rating }}/5
+                </div>
+                <div class="detail-item">
+                    <strong>Стаж на ринку:</strong> {{ request.supplier.years_on_market or '0' }} років
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <h3> Деталі закупівлі</h3>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <strong>Обладнання:</strong> {{ request.equipment_details }}
+                </div>
+                <div class="detail-item">
+                    <strong>Кількість:</strong> {{ request.quantity }} шт.
+                </div>
+                <div class="detail-item">
+                    <strong>Ціна за одиницю:</strong> {{ "%.2f"|format(request.unit_price) }} грн
+                </div>
+                <div class="detail-item">
+                    <strong>Загальна сума:</strong> {{ "%.2f"|format(request.total_amount) }} грн
+                </div>
+                <div class="detail-item">
+                    <strong>Термін поставки:</strong> {{ request.delivery_time }} днів
+                </div>
+                <div class="detail-item">
+                    <strong>Дата оновлення:</strong> {{ request.updated_at.strftime('%d.%m.%Y %H:%M') }}
+                </div>
+            </div>
+        </div>
+
+        {% if request.justification %}
+        <div class="detail-section">
+            <h3> Обґрунтування вибору постачальника</h3>
+            <div class="justification-text">
+                {{ request.justification }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="action-buttons">
+            <a href="{{ url_for('purchase_requests') }}" class="btn btn-secondary">← Назад до списку</a>
+            
+            <!-- Кнопки для менеджера -->
+            {% if session.user_role == 'manager' and request.status in ['pending', 'draft'] and request.user_id == session.user_id %}
+            <a href="{{ url_for('approve_request', request_id=request.id) }}" 
+               class="btn btn-success"
+               onclick="return confirm('Затвердити заявку {{ request.request_number }}?')">
+                 Затвердити
+            </a>
+            <a href="{{ url_for('reject_request', request_id=request.id) }}" 
+               class="btn btn-warning"
+               onclick="return confirm('Відхилити заявку {{ request.request_number }}?')">
+                 Відхилити
+            </a>
+            {% endif %}
+            
+            <!-- Кнопки для керівника проекту -->
+            {% if session.user_role == 'project_manager' and request.status == 'pending_project_manager' and request.total_amount <= 100000 %}
+            <a href="{{ url_for('approve_request', request_id=request.id) }}" 
+               class="btn btn-success"
+               onclick="return confirm('Затвердити заявку {{ request.request_number }}?')">
+                 Затвердити
+            </a>
+            <a href="{{ url_for('reject_request', request_id=request.id) }}" 
+               class="btn btn-warning"
+               onclick="return confirm('Відхилити заявку {{ request.request_number }}?')">
+                 Відхилити
+            </a>
+            {% endif %}
+            
+            <!-- Кнопки для фінансового директора -->
+            {% if session.user_role == 'financial_director' and request.status in ['pending_financial_director', 'pending_project_manager', 'pending'] %}
+            <a href="{{ url_for('approve_request', request_id=request.id) }}" 
+               class="btn btn-success"
+               onclick="return confirm('Затвердити заявку {{ request.request_number }}?')">
+                 Затвердити
+            </a>
+            <a href="{{ url_for('reject_request', request_id=request.id) }}" 
+               class="btn btn-warning"
+               onclick="return confirm('Відхилити заявку {{ request.request_number }}?')">
+                 Відхилити
+            </a>
+            {% endif %}
+            
+            <!-- Кнопки для адміністратора -->
+            {% if session.user_role == 'admin' and request.status not in ['approved', 'rejected'] %}
+            <a href="{{ url_for('approve_request', request_id=request.id) }}" 
+               class="btn btn-success"
+               onclick="return confirm('Затвердити заявку {{ request.request_number }}?')">
+                 Затвердити
+            </a>
+            {% endif %}
+            
+            <!-- Кнопка видалення для менеджера -->
+            {% if session.user_role == 'manager' and request.user_id == session.user_id and request.status in ['pending', 'rejected'] %}
+            <a href="{{ url_for('delete_request', request_id=request.id) }}" 
+               class="btn btn-danger"
+               onclick="return confirm('Видалити заявку {{ request.request_number }}?')">
+                  Видалити заявку
+             </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

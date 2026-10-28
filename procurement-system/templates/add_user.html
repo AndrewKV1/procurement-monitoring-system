@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Додати користувача - Система моніторингу закупівель</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% extends "base.html" %}
+
+    {% block content %}
+    <div class="add-user-page">
+        <div class="page-header">
+            <h2>Додати нового користувача</h2>
+            <p>Заповніть форму для реєстрації нового користувача в системі</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="form-container">
+            <form method="POST" class="user-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="full_name">Повне ім'я *</label>
+                        <input type="text" id="full_name" name="full_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="role">Роль:</label>
+                        <select id="role" name="role" required>
+                            <option value="manager">Менеджер</option>
+                            <option value="project_manager">Керівник проекту</option>
+                            <option value="financial_director">Фінансовий директор</option>
+                            <option value="analyst">Аналітик</option>
+                            <option value="admin">Адміністратор</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="department">Відділ</label>
+                        <input type="text" id="department" name="department">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="password">Пароль *</label>
+                        <input type="password" id="password" name="password" required minlength="6">
+                        <small class="form-text">Мінімум 6 символів</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm_password">Підтвердження пароля *</label>
+                        <input type="password" id="confirm_password" name="confirm_password" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Зберегти користувача</button>
+                    <a href="{{ url_for('users') }}" class="btn btn-secondary">Скасувати</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="use-case-info">
+            <p><strong>Керування користувачами системи</strong> - додавання нових користувачів, редагування прав доступу</p>
+            <ul>
+                <li>Перевірка унікальності email</li>
+                <li>Призначення прав доступу відповідно до ролі</li>
+                <li>Журнал аудиту операцій</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('password').addEventListener('input', validatePassword);
+        document.getElementById('confirm_password').addEventListener('input', validatePassword);
+
+        function validatePassword() {
+            const password = document.getElementById('password');
+            const confirm = document.getElementById('confirm_password');
+            
+            if (password.value !== confirm.value) {
+                confirm.setCustomValidity('Паролі не співпадають');
+            } else {
+                confirm.setCustomValidity('');
+            }
+        }
+
+        document.getElementById('role').addEventListener('change', function() {
+            if (this.value === 'admin') {
+                alert('Призначення ролі "Адміністратор" потребує додаткового затвердження керівником IT-відділу');
+            }
+        });
+    </script>
+    {% endblock %}
+</body>
+</html>

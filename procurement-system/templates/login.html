@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вхід в систему - Система моніторингу закупівель</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-form">
+            <div class="login-header">
+                <h1>Система моніторингу закупівель</h1>
+                <p>Будівельне обладнання</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label for="email"> Email:</label>
+                    <input type="email" id="email" name="email" required 
+                           placeholder="Введіть ваш email" value="{{ request.form.email if request.form }}">
+                </div>
+
+                <div class="form-group password-toggle">
+                    <label for="password"> Пароль:</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="Введіть ваш пароль">
+                    <button type="button" class="toggle-password" onclick="togglePassword()">Переглянути</button>
+                </div>
+
+                <button type="submit" class="login-btn"> Увійти в систему</button>
+            </form>
+
+            <div class="security-features">
+                <h4> Безпека системи:</h4>
+                <ul>
+                    <li>Шифрування даних: AES-256</li>
+                    <li>Захищене з'єднання: TLS 1.3</li>
+                    <li>Журнал аудиту всіх дій</li>
+                    <li>Рольова модель доступу</li>
+                </ul>
+            </div>
+
+            <div class="test-accounts">
+                <h4>Тестові облікові дані:</h4>
+                <ul>
+                    <li>
+                        <strong>Адміністратор:</strong><br>
+                        admin@budsystem.com / admin123
+                    </li>
+                    <li>
+                        <strong>Менеджер:</strong><br>
+                        petro@budsystem.com / manager123
+                    </li>
+                    <li>
+                        <strong>Аналітик:</strong><br>
+                        olena@budsystem.com / analyst123
+                    </li>
+                    <li>
+                        <strong>Керівник проекту:</strong><br>
+                        ivan@budsystem.com / pm123
+                    </li>
+                    <li>
+                        <strong>Фінансовий директор:</strong><br>
+                        oksana@budsystem.com / director123
+                    </li>
+                </ul>
+            </div>
+
+            <div class="login-footer">
+                <p>© 2025 Система моніторингу закупівель. Всі права захищені.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleButton = document.querySelector('.toggle-password');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleButton.textContent = 'пароль';
+            } else {
+                passwordInput.type = 'password';
+                toggleButton.textContent = 'відкрити';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('email').focus();
+        });
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('focused');
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.classList.remove('focused');
+            });
+        });
+    </script>
+</body>
+</html>

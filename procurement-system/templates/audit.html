@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="audit-page">
+    <div class="page-header">
+        <h2>Журнал аудиту системи</h2>
+        <p>Історія всіх дій користувачів в системі</p>
+    </div>
+
+    <div class="audit-stats">
+        <div class="stat-card">
+            <h3>Записи за сьогодні</h3>
+            <div class="stat-number">{{ today_count }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Унікальних користувачів</h3>
+            <div class="stat-number">{{ unique_users }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Типи дій</h3>
+            <div class="stat-number">{{ action_count }}</div>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <div class="export-buttons">
+            <a href="{{ url_for('export_audit_csv') }}" class="btn btn-success">Експорт CSV</a>
+            <a href="{{ url_for('export_audit_json') }}" class="btn btn-info">Експорт JSON</a>
+            <a href="{{ url_for('export_audit_txt') }}" class="btn btn-secondary">Експорт TXT</a>
+        </div>
+        <div class="stats">
+            <span>Останні 100 записів</span>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Дата та час</th>
+                    <th>Користувач</th>
+                    <th>Роль</th>
+                    <th>Дія</th>
+                    <th>Деталі</th>
+                    <th>IP-адреса</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td><strong>{{ log.timestamp.strftime('%d.%m.%Y %H:%M:%S') }}</strong></td>
+                    <td>
+                        {% if log.user %}
+                            {{ log.user.full_name }}
+                            <br><small>{{ log.user.email }}</small>
+                        {% else %}
+                            <span class="unknown-user">Невідомий користувач</span>
+                            <br><small>ID: {{ log.user_id or 'N/A' }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.user %}
+                            <span class="role-badge role-{{ log.user.role }}">
+                                {% if log.user.role == 'admin' %}Адмін
+                                {% elif log.user.role == 'manager' %}Менеджер
+                                {% else %}Аналітик
+                                {% endif %}
+                            </span>
+                        {% else %}
+                            <span class="role-badge role-unknown">Невідомо</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if 'LOGIN' in log.action %}
+                        <span class="action-badge action-login">Вхід</span>
+                        {% elif 'USER' in log.action %}
+                        <span class="action-badge action-user">Користувачі</span>
+                        {% elif 'PURCHASE' in log.action %}
+                        <span class="action-badge action-purchase">Заявки</span>
+                        {% elif 'AUDIT' in log.action %}
+                        <span class="action-badge action-audit">Аудит</span>
+                        {% elif 'EXPORT' in log.action %}
+                        <span class="action-badge action-export">Експорт</span>
+                        {% else %}
+                        <span class="action-badge action-system">Система</span>
+                        {% endif %}
+                        <br><small class="action-name">{{ log.action }}</small>
+                    </td>
+                    <td class="log-details" title="{{ log.details or 'Немає деталей' }}">
+                        {{ log.details or '-' }}
+                    </td>
+                    <td>
+                        <code class="ip-address">{{ log.ip_address or 'N/A' }}</code>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not logs %}
+    <div class="no-data">
+        <h4>Журнал аудиту порожній</h4>
+        <p>Поки що немає записів в журналі аудиту</p>
+    </div>
+    {% endif %}
+
+    
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.log-details').forEach(element => {
+        element.addEventListener('click', function() {
+            const details = this.getAttribute('title');
+            if (details && details !== 'Немає деталей') {
+                alert('Повні деталі:\n\n' + details);
+            }
+        });
+    });
+
+    function autoRefreshAudit() {
+        if (document.querySelector('tbody tr')) {
+            setTimeout(() => {
+                console.log('Автоматичне оновлення журналу аудиту...');
+                window.location.reload();
+            }, 30000);
+        }
+    }
+
+    function highlightRecentLogs() {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach((row, index) => {
+            if (index < 5) {
+                row.style.backgroundColor = '#f8fff8';
+                row.style.borderLeft = '4px solid #28a745';
+            }
+        });
+    }
+
+    autoRefreshAudit();
+    highlightRecentLogs();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="welcome-section">
+        <h2>Ласкаво просимо, {{ user.full_name }}!</h2>
+        <p>Статус системи: <span class="status-active">ПРАЦЮЄ</span></p>
+        <p>Ваша роль: <strong>
+            {% if session.user_role == 'admin' %} Адміністратор
+            {% elif session.user_role == 'manager' %} Менеджер з закупівель
+            {% elif session.user_role == 'analyst' %} Аналітик
+            {% elif session.user_role == 'project_manager' %} Керівник проекту
+            {% elif session.user_role == 'financial_director' %} Фінансовий директор
+            {% endif %}
+        </strong></p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Користувачі</h3>
+            <div class="stat-number">{{ stats.total_users }}</div>
+            <p>Активних в системі</p>
+        </div>
+
+        <div class="stat-card">
+            <h3>Постачальники</h3>
+            <div class="stat-number">{{ stats.total_suppliers }}</div>
+            <p>Зареєстровано</p>
+        </div>
+
+        <div class="stat-card">
+            <h3>Активні заявки</h3>
+            <div class="stat-number">{{ stats.active_requests }}</div>
+            <p>Очікують розгляду</p>
+        </div>
+
+        <div class="stat-card">
+            <h3>Затверджені</h3>
+            <div class="stat-number">{{ stats.approved_requests }}</div>
+            <p>Заявки</p>
+        </div>
+    </div>
+
+    <div class="recent-activity">
+        <h3>Останні заявки</h3>
+        {% if recent_requests %}
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px;">
+            <table class="data-table" style="width: 100%;">
+                <thead style="position: sticky; top: 0; background: var(--light-color); z-index: 10;">
+                    <tr>
+                        <th style="padding: 12px; border-bottom: 2px solid #eee;">Номер</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #eee;">Постачальник</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #eee;">Сума</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #eee;">Статус</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #eee;">Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in recent_requests %}
+                    <tr style="transition: background-color 0.3s ease;">
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;"><strong>{{ request.request_number }}</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">{{ request.supplier.name }}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">{{ "%.2f"|format(request.total_amount) }} грн</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <span class="status-{{ request.status }}">
+                                {% if request.status == 'approved' %}Затверджено
+                                {% elif request.status == 'pending' %}Очікує менеджера
+                                {% elif request.status == 'pending_project_manager' %}Очікує керівника
+                                {% elif request.status == 'pending_financial_director' %}Очікує фін. директора
+                                {% elif request.status == 'draft' %}Чернетка
+                                {% elif request.status == 'rejected' %}Відхилено
+                                {% elif request.status == 'cancelled' %}Скасовано
+                                {% else %}{{ request.status }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #eee;">{{ request.created_at.strftime('%d.%m.%Y') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="no-data" style="text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h4>Заявок ще немає</h4>
+            <p>Створіть першу заявку на закупівлю</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="quick-actions">
+        <h3>Швидкі дії</h3>
+        <div class="action-buttons">
+            <!-- Адміністратор -->
+            {% if session.user_role == 'admin' %}
+            <a href="{{ url_for('users') }}" class="btn btn-warning">Керування користувачами</a>
+            <a href="{{ url_for('audit_logs') }}" class="btn btn-info">Перегляд аудиту</a>
+            {% endif %}
+            
+            <!-- Менеджер -->
+            {% if session.user_role == 'manager' %}
+            <a href="{{ url_for('suppliers') }}" class="btn btn-primary">Пошук постачальників</a>
+            <a href="{{ url_for('create_request') }}" class="btn btn-success">Нова заявка</a>
+            {% endif %}
+            
+            <!-- Аналітик -->
+            {% if session.user_role == 'analyst' %}
+            <a href="{{ url_for('analytics') }}" class="btn btn-info">Аналітика</a>
+            <a href="{{ url_for('purchase_requests') }}" class="btn btn-primary">Перегляд заявок</a>
+            {% endif %}
+            
+            <!-- Керівник проекту -->
+            {% if session.user_role == 'project_manager' %}
+            <a href="{{ url_for('purchase_requests') }}" class="btn btn-success">Заявки для затвердження</a>
+            {% endif %}
+            
+            <!-- Фінансовий директор -->
+            {% if session.user_role == 'financial_director' %}
+            <a href="{{ url_for('purchase_requests') }}" class="btn btn-success">Заявки для затвердження</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="system-info">
+    <h4>Тестові облікові дані:</h4>
+    <ul>
+        <li><strong>Адміністратор:</strong> admin@budsystem.com / admin123</li>
+        <li><strong>Менеджер:</strong> petro@budsystem.com / manager123</li>
+        <li><strong>Аналітик:</strong> olena@budsystem.com / analyst123</li>
+        <li><strong>Керівник проекту:</strong> ivan@budsystem.com / pm123</li>
+        <li><strong>Фінансовий директор:</strong> oksana@budsystem.com / director123</li>
+    </ul>
+</div>
+
+{% endblock %}

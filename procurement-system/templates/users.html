@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="users-page">
+    <div class="page-header">
+        <h2>Керування користувачами системи</h2>
+        <p>Додавання, редагування та деактивація користувачів</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="action-bar">
+        <a href="{{ url_for('add_user') }}" class="btn btn-primary">+ Додати користувача</a>
+        <div class="stats">
+            <span>Всього користувачів: {{ users|length }}</span>
+            <span>Активних: {{ users|selectattr('is_active')|list|length }}</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table scrollable-table">
+            <thead>
+                <tr>
+                    <th>ПІБ</th>
+                    <th>Email</th>
+                    <th>Роль</th>
+                    <th>Відділ</th>
+                    <th>Статус</th>
+                    <th>Дата реєстрації</th>
+                    <th>Останній вхід</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><strong>{{ user.full_name }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <span class="role-badge role-{{ user.role }}">
+                            {% if user.role == 'admin' %}Адміністратор
+                            {% elif user.role == 'manager' %}Менеджер
+                            {% elif user.role == 'project_manager' %}Керівник проекту
+                            {% elif user.role == 'financial_director' %}Фінансовий директор
+                            {% else %}Аналітик
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>{{ user.department or '-' }}</td>
+                    <td>
+                        {% if user.is_active %}
+                        <span class="status-active">Активний</span>
+                        {% else %}
+                        <span class="status-inactive">Неактивний</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                    <td>
+                        {% if user.last_login %}
+                        {{ user.last_login.strftime('%d.%m.%Y %H:%M') }}
+                        {% else %}
+                        <span class="text-muted">Ще не входив</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions">
+                        <div class="action-buttons">
+                            <a href="{{ url_for('edit_user', user_id=user.id) }}" 
+                               class="btn btn-sm btn-secondary" 
+                               title="Редагувати користувача">
+                                Редагувати
+                            </a>
+                            {% if user.id != session.user_id and user.role != 'admin' %}
+                            <a href="{{ url_for('delete_user', user_id=user.id) }}" 
+                               class="btn btn-sm btn-danger" 
+                               onclick="return confirm('Ви впевнені, що хочете видалити користувача {{ user.full_name }}? Ця дія незворотна!')"
+                               title="Видалити користувача">
+                                Видалити
+                            </a>
+                            {% elif user.id == session.user_id %}
+                            <span class="btn btn-sm btn-disabled" title="Не можна видалити себе">Видалити</span>
+                            {% elif user.role == 'admin' %}
+                            <span class="btn btn-sm btn-disabled" title="Не можна видалити адміністратора">Видалити</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="business-rules">
+        <h4>Бізнес правила:</h4>
+        <ul>
+            <li>Мінімум один активний системний адміністратор</li>
+            <li>Заборона призначення ролі "Адміністратор" без додаткового затвердження</li>
+            <li>Не можна видалити власний обліковий запис</li>
+            <li>Не можна видалити адміністратора</li>
+            <li>Не можна деактивувати останнього активного адміністратора</li>
+            <li>Керівник проекту може затверджувати заявки до 100,000 грн</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tableContainer = document.querySelector('.table-responsive');
+    if (tableContainer) {
+        tableContainer.scrollLeft = 0;
+    }
+    
+    const tooltips = document.querySelectorAll('[title]');
+    tooltips.forEach(tooltip => {
+        tooltip.addEventListener('mouseenter', function(e) {
+        });
+    });
+});
+</script>
+{% endblock %}

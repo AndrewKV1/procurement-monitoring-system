@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="request-form-container">
+    <div class="page-header">
+        <h2>Формування заявки на закупівлю</h2>
+        <p>Створення офіційного запиту на закупівлю будівельного обладнання</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="request-form">
+        <div class="form-section">
+            <h3>Інформація про постачальника</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="supplier_id">Постачальник *</label>
+                    <select id="supplier_id" name="supplier_id" required>
+                        <option value="">Оберіть постачальника</option>
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}" data-rating="{{ supplier.rating }}">
+                            {{ supplier.name }} ({{ supplier.region }}) ★{{ supplier.rating }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text">Рейтинг постачальника: <span id="supplierRating">-</span></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Деталі закупівлі</h3>
+            
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="equipment_id">Обладнання *</label>
+                    <select id="equipment_id" name="equipment_id">
+                        <option value="">-- Оберіть обладнання --</option>
+                    </select>
+                    <small class="form-text">
+                        Немає потрібного обладнання? 
+                        <a href="#" id="addEquipmentBtn" style="color: #3498db; font-weight: 600;">+ Додати нове обладнання</a>
+                    </small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="equipment_details">Або введіть опис вручну</label>
+                    <textarea id="equipment_details" name="equipment_details" rows="2" 
+                              placeholder="Заповніть це поле, якщо не обрали обладнання зі списку"></textarea>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="quantity">Кількість *</label>
+                    <input type="number" id="quantity" name="quantity" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="unit_price">Ціна за одиницю (грн) *</label>
+                    <input type="number" id="unit_price" name="unit_price" min="0" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="delivery_time">Термін поставки (днів) *</label>
+                    <input type="number" id="delivery_time" name="delivery_time" min="1" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="total_amount">Загальна сума</label>
+                    <input type="text" id="total_amount" readonly class="readonly-field">
+                    <small class="form-text">Розраховується автоматично</small>
+                </div>
+                <div class="form-group">
+                    <label for="auto_approval">Статус заявки</label>
+                    <input type="text" id="auto_approval" readonly class="readonly-field">
+                    <small class="form-text" id="approvalInfo">Визначається автоматично</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Додаткова інформація</h3>
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="justification">Обґрунтування вибору постачальника</label>
+                    <textarea id="justification" name="justification" rows="4"
+                              placeholder="Чому обрано цього постачальника?"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Надіслати заявку</button>
+            <a href="{{ url_for('purchase_requests') }}" class="btn btn-secondary">Скасувати</a>
+        </div>
+    </form>
+</div>
+
+<!-- МОДАЛЬНЕ ВІКНО ДОДАВАННЯ ОБЛАДНАННЯ -->
+<div id="equipmentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; padding:2rem; border-radius:8px; max-width:500px; width:90%; 
+                max-height:90vh; overflow-y:auto;">
+        <h3 style="margin-bottom:1.5rem; color:#2c3e50;">Додати нове обладнання</h3>
+        
+        <div class="form-group">
+            <label for="new_eq_name">Назва *</label>
+            <input type="text" id="new_eq_name" placeholder="Наприклад: Кран баштовий" 
+                   style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        
+        <div class="form-group" style="margin-top:1rem;">
+            <label for="new_eq_category">Категорія</label>
+            <input type="text" id="new_eq_category" placeholder="Наприклад: Підйомні механізми"
+                   style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        
+        <div class="form-group" style="margin-top:1rem;">
+            <label for="new_eq_specs">Специфікація</label>
+            <textarea id="new_eq_specs" rows="2" placeholder="Вантажопідйомність 5т, стріла 20м"
+                      style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px;"></textarea>
+        </div>
+        
+        <div class="form-group" style="margin-top:1rem;">
+            <label for="new_eq_price">Середня ціна (грн) *</label>
+            <input type="number" id="new_eq_price" min="0" step="0.01" placeholder="150000"
+                   style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px;">
+        </div>
+        
+        <div class="form-group" style="margin-top:1rem;">
+            <label for="new_eq_supplier">Постачальник</label>
+            <select id="new_eq_supplier" 
+                    style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px;">
+                <option value="">-- Оберіть постачальника --</option>
+            </select>
+        </div>
+        
+        <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+            <button type="button" id="saveEquipmentBtn" class="btn btn-primary">Зберегти</button>
+            <button type="button" id="cancelEquipmentBtn" class="btn btn-secondary">Скасувати</button>
+        </div>
+        
+        <div id="equipmentError" style="color:#e74c3c; margin-top:1rem; display:none;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const equipmentSelect = document.getElementById('equipment_id');
+    const supplierSelect = document.getElementById('supplier_id');
+    const modal = document.getElementById('equipmentModal');
+    const addBtn = document.getElementById('addEquipmentBtn');
+    const saveBtn = document.getElementById('saveEquipmentBtn');
+    const cancelBtn = document.getElementById('cancelEquipmentBtn');
+    const errorDiv = document.getElementById('equipmentError');
+
+    async function loadEquipment() {
+        try {
+            const response = await fetch('/api/equipment/list');
+            const equipment = await response.json();
+            
+            equipmentSelect.innerHTML = '<option value="">-- Оберіть обладнання --</option>';
+            
+            equipment.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} (${item.category}) - ${item.average_price} грн`;
+                option.dataset.price = item.average_price;
+                option.dataset.supplierId = item.supplier_id || '';
+                equipmentSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Помилка завантаження обладнання:', error);
+        }
+    }
+
+    equipmentSelect.addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const price = option?.dataset?.price;
+        const supplierId = option?.dataset?.supplierId;
+        
+        if (price && price !== '0') {
+            document.getElementById('unit_price').value = price;
+            document.getElementById('quantity').dispatchEvent(new Event('input'));
+        }
+        
+        if (supplierId && supplierSelect) {
+            supplierSelect.value = supplierId;
+        }
+    });
+
+    addBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        modal.style.display = 'flex';
+        loadSuppliersToModal();
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+        clearModalForm();
+    });
+
+    async function loadSuppliersToModal() {
+        try {
+            const response = await fetch('/api/suppliers/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            });
+            const suppliers = await response.json();
+            
+            const select = document.getElementById('new_eq_supplier');
+            select.innerHTML = '<option value="">-- Оберіть постачальника --</option>';
+            suppliers.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.id;
+                option.textContent = s.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Помилка завантаження постачальників:', error);
+        }
+    }
+
+    saveBtn.addEventListener('click', async function() {
+        const name = document.getElementById('new_eq_name').value.trim();
+        const price = document.getElementById('new_eq_price').value;
+        
+        if (!name) {
+            showError('Введіть назву обладнання');
+            return;
+        }
+        if (!price || parseFloat(price) <= 0) {
+            showError('Введіть коректну ціну');
+            return;
+        }
+        
+        errorDiv.style.display = 'none';
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Збереження...';
+        
+        try {
+            const response = await fetch('/equipment/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: name,
+                    category: document.getElementById('new_eq_category').value.trim(),
+                    specifications: document.getElementById('new_eq_specs').value.trim(),
+                    average_price: parseFloat(price),
+                    supplier_id: document.getElementById('new_eq_supplier').value || null
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const option = document.createElement('option');
+                option.value = result.id;
+                option.textContent = `${result.name} (${result.category}) - ${result.average_price} грн`;
+                option.dataset.price = result.average_price;
+                option.dataset.supplierId = result.supplier_id || '';
+                equipmentSelect.appendChild(option);
+                
+                equipmentSelect.value = result.id;
+                equipmentSelect.dispatchEvent(new Event('change'));
+                
+                modal.style.display = 'none';
+                clearModalForm();
+            } else {
+                showError(result.error || 'Помилка збереження');
+            }
+        } catch (error) {
+            showError('Помилка мережі: ' + error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Зберегти';
+        }
+    });
+
+    function showError(message) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+
+    function clearModalForm() {
+        document.getElementById('new_eq_name').value = '';
+        document.getElementById('new_eq_category').value = '';
+        document.getElementById('new_eq_specs').value = '';
+        document.getElementById('new_eq_price').value = '';
+        document.getElementById('new_eq_supplier').value = '';
+        errorDiv.style.display = 'none';
+    }
+
+    function calculateTotal() {
+        const quantity = parseInt(document.getElementById('quantity').value) || 0;
+        const unitPrice = parseFloat(document.getElementById('unit_price').value) || 0;
+        const total = quantity * unitPrice;
+        document.getElementById('total_amount').value = total.toFixed(2) + ' грн';
+        
+        const approvalField = document.getElementById('auto_approval');
+        const infoField = document.getElementById('approvalInfo');
+        
+        if (total <= 25000) {
+            approvalField.value = 'Автоматично затверджено';
+            infoField.textContent = 'Сума до 25 000 грн — без затвердження';
+        } else if (total <= 100000) {
+            approvalField.value = 'Очікує керівника';
+            infoField.textContent = 'Потрібне затвердження керівником проекту';
+        } else {
+            approvalField.value = 'Очікує фін. директора';
+            infoField.textContent = 'Потрібне затвердження фінансовим директором';
+        }
+    }
+
+    document.getElementById('quantity').addEventListener('input', calculateTotal);
+    document.getElementById('unit_price').addEventListener('input', calculateTotal);
+
+    supplierSelect.addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const rating = option?.dataset?.rating || '-';
+        document.getElementById('supplierRating').textContent = rating;
+    });
+
+    loadEquipment();
+    calculateTotal();
+});
+</script>
+{% endblock %}

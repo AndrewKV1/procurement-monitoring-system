@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="requests-page">
+    <div class="page-header">
+        <h2>Заявки на закупівлю</h2>
+        <p>
+            {% if session.user_role == 'analyst' %}Аналітичний перегляд заявок
+            {% elif session.user_role == 'project_manager' %}Перегляд та затвердження заявок до 100,000 грн
+            {% elif session.user_role == 'financial_director' %}Перегляд та затвердження всіх заявок
+            {% else %}Ваші заявки на закупівлю
+            {% endif %}
+        </p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="action-bar">
+        {% if session.user_role in ['manager', 'project_manager'] %}
+        <a href="{{ url_for('create_request') }}" class="btn btn-primary">Створити заявку</a>
+        {% endif %}
+        <div class="stats">
+            <span>Всього: {{ requests|length }}</span>
+        </div>
+    </div>
+
+    {% if requests %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Номер</th>
+                    <th>Постачальник</th>
+                    <th>Обладнання</th>
+                    <th>Сума</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for request in requests %}
+                <tr>
+                    <td><strong>{{ request.request_number }}</strong></td>
+                    <td>{{ request.supplier.name }}</td>
+                    <td>{{ request.equipment_details[:40] }}{% if request.equipment_details|length > 40 %}...{% endif %}</td>
+                    <td>{{ "%.2f"|format(request.total_amount) }} грн</td>
+                    <td>
+                        <span class="status-{{ request.status }}">
+                            {% if request.status == 'approved' %}Затверджено
+                            {% elif request.status == 'pending' %}Очікує
+                            {% elif request.status == 'pending_project_manager' %}Очікує керівника
+                            {% elif request.status == 'pending_financial_director' %}Очікує фін. дир.
+                            {% elif request.status == 'draft' %}Чернетка
+                            {% elif request.status == 'rejected' %}Відхилено
+                            {% elif request.status == 'cancelled' %}Скасовано
+                            {% else %}{{ request.status }}
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>{{ request.created_at.strftime('%d.%m.%Y') }}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <a href="{{ url_for('view_request', request_id=request.id) }}" 
+                               class="btn btn-sm btn-info">Переглянути</a>
+                            
+                            {% if session.user_role == 'admin' and request.status not in ['approved', 'rejected'] %}
+                            <a href="{{ url_for('approve_request', request_id=request.id) }}" 
+                               class="btn btn-sm btn-success"
+                               onclick="return confirm('Затвердити?')">Затв.</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="no-data">
+        <h4>Заявок ще немає</h4>
+        <p>Створіть першу заявку на закупівлю</p>
+        {% if session.user_role in ['manager', 'project_manager'] %}
+        <a href="{{ url_for('create_request') }}" class="btn btn-primary">Створити заявку</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
